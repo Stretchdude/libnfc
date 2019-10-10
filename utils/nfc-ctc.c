@@ -71,6 +71,11 @@
 #define NTAG_215  2
 #define NTAG_216  3
 
+int logging = 0;
+
+#define LOG(...) do {if (logging) fprintf(stderr, __VA_ARGS__); } while(0)
+
+
 static nfc_device *pnd;
 static nfc_target nt;
 static mifare_param mp;
@@ -107,7 +112,7 @@ static const nfc_modulation nmMifare = {
 	static void
 print_success_or_failure(bool bFailure, uint32_t *uiOkCounter, uint32_t *uiFailedCounter)
 {
-	fprintf(stderr,"%c", (bFailure) ? 'f' : '.');
+	LOG("%c", (bFailure) ? 'f' : '.');
 	if (uiOkCounter)
 		*uiOkCounter += (bFailure) ? 0 : 1;
 	if (uiFailedCounter)
@@ -121,7 +126,7 @@ read_card(void)
 	bool    bFailure = false;
 	uint32_t uiFailedPages = 0;
 
-	fprintf(stderr,"Reading %d pages |", uiBlocks);
+	LOG("Reading %d pages |", uiBlocks);
 
 	for (page = 0; page < uiBlocks; page += 4) {
 		// Try to read out the data block
@@ -134,8 +139,8 @@ read_card(void)
 			print_success_or_failure(bFailure, &uiReadPages, &uiFailedPages);
 		}
 	}
-	fprintf(stderr,"|\n");
-	fprintf(stderr,"Done, %d of %d pages read (%d pages failed).\n", uiReadPages, uiBlocks, uiFailedPages);
+	LOG("|\n");
+	LOG("Done, %d of %d pages read (%d pages failed).\n", uiReadPages, uiBlocks, uiFailedPages);
 	fflush(stdout);
 
 	// copy EV1 secrets to dump data
@@ -298,40 +303,40 @@ static bool check_magic() {
 	bool directWrite = true;
 	// Try to read pages 0, 1, 2
 	uint8_t original_b0[12];
-	fprintf(stderr,"Checking if UL badge is DirectWrite...\n");
+	LOG("Checking if UL badge is DirectWrite...\n");
 	if (nfc_initiator_mifare_cmd(pnd, MC_READ, 0, &mp)) {
 		memcpy(original_b0, mp.mpd.abtData, 12);
-		fprintf(stderr," Original Block 0 (Pages 0-2): ");
+		LOG(" Original Block 0 (Pages 0-2): ");
 		for(int i=0;i<12;i++){
-			fprintf(stderr,"%02x", original_b0[i]);
+			LOG("%02x", original_b0[i]);
 		}
-		fprintf(stderr,"\n");
-		fprintf(stderr," Original UID: %02x%02x%02x%02x%02x%02x%02x\n",
+		LOG("\n");
+		LOG(" Original UID: %02x%02x%02x%02x%02x%02x%02x\n",
 				original_b0[0], original_b0[1], original_b0[2], original_b0[4], original_b0[5], original_b0[6], original_b0[7]);
 	} else {
-		fprintf(stderr,"!\nError: unable to read block 0x%02x\n", 0);
+		LOG("!\nError: unable to read block 0x%02x\n", 0);
 		directWrite = false;
 	}
-	fprintf(stderr," Attempt to write Block 0 (pages 0-2) ...\n");
+	LOG(" Attempt to write Block 0 (pages 0-2) ...\n");
 	for (uint32_t page = 0; page <= 2; page++) {
-		fprintf(stderr,"  Writing Page %i:", page);
+		LOG("  Writing Page %i:", page);
 		memcpy(mp.mpd.abtData, original_b0 + page*4, 4);
 		for(int i=0;i<4;i++){
-			fprintf(stderr," %02x", mp.mpd.abtData[i]);
+			LOG(" %02x", mp.mpd.abtData[i]);
 		}
-		fprintf(stderr,"\n");
+		LOG("\n");
 		if (!nfc_initiator_mifare_cmd(pnd, MC_WRITE, page, &mp)) {
-			fprintf(stderr,"  Failure writing Page %i\n", page);
+			LOG("  Failure writing Page %i\n", page);
 			directWrite = false;
 			break;
 		}
 	}
 	if(directWrite){
-		fprintf(stderr," Block 0 written successfully\n");
-		fprintf(stderr,"Card is DirectWrite\n");
+		LOG(" Block 0 written successfully\n");
+		LOG("Card is DirectWrite\n");
 		return true;
 	} else {
-		fprintf(stderr,"Card is not DirectWrite\n");
+		LOG("Card is not DirectWrite\n");
 		return unlock_card();
 	}
 
@@ -349,7 +354,7 @@ write_card(bool write_otp, bool write_lock, bool write_dyn_lock, bool write_uid)
 	char    buffer[BUFSIZ];
 
 	if (!write_otp) {
-		fprintf(stderr,"Write OTP/Capability Bytes ? [yN] ");
+		LOG("Write OTP/Capability Bytes ? [yN] ");
 		if (!fgets(buffer, BUFSIZ, stdin)) {
 			ERR("Unable to read standard input.");
 		}
@@ -358,7 +363,7 @@ write_card(bool write_otp, bool write_lock, bool write_dyn_lock, bool write_uid)
 
 	// Lock Bytes are OTP if set, so warn
 	if (!write_lock) {
-		fprintf(stderr,"Write Lock Bytes (Warning: OTP if set) ? [yN] ");
+		LOG("Write Lock Bytes (Warning: OTP if set) ? [yN] ");
 		if (!fgets(buffer, BUFSIZ, stdin)) {
 			ERR("Unable to read standard input.");
 		}
@@ -367,7 +372,7 @@ write_card(bool write_otp, bool write_lock, bool write_dyn_lock, bool write_uid)
 
 	// NTAG and MF0UL21 have additional lock bytes
 	if (!write_dyn_lock && (iNTAGType != NTAG_NONE || iEV1Type == EV1_UL21)) {
-		fprintf(stderr,"Write Dynamic Lock Bytes ? [yN] ");
+		LOG("Write Dynamic Lock Bytes ? [yN] ");
 		if (!fgets(buffer, BUFSIZ, stdin)) {
 			ERR("Unable to read standard input.");
 		}
@@ -375,7 +380,7 @@ write_card(bool write_otp, bool write_lock, bool write_dyn_lock, bool write_uid)
 	}
 
 	if (!write_uid) {
-		fprintf(stderr,"Write UID bytes (only for special writeable UID cards) ? [yN] ");
+		LOG("Write UID bytes (only for special writeable UID cards) ? [yN] ");
 		if (!fgets(buffer, BUFSIZ, stdin)) {
 			ERR("Unable to read standard input.");
 		}
@@ -384,26 +389,26 @@ write_card(bool write_otp, bool write_lock, bool write_dyn_lock, bool write_uid)
 
 	/* We may need to skip 2 first pages. */
 	if (!write_uid) {
-		fprintf(stderr,"Writing %d pages |", uiBlocks);
-		fprintf(stderr,"ss");
+		LOG("Writing %d pages |", uiBlocks);
+		LOG("ss");
 		uiSkippedPages = 2;
 	} else {
 		if (!check_magic()) {
-			fprintf(stderr,"\nUnable to unlock card - are you sure the card is magic?\n");
+			LOG("\nUnable to unlock card - are you sure the card is magic?\n");
 			return false;
 		}
-		fprintf(stderr,"Writing %d pages |", uiBlocks);
+		LOG("Writing %d pages |", uiBlocks);
 	}
 
 	for (uint32_t page = uiSkippedPages; page < uiBlocks; page++) {
 		if ((!write_lock) && page == 0x2) {
-			fprintf(stderr,"s");
+			LOG("s");
 			uiSkippedPages++;
 			continue;
 		}
 		// OTP/Capability blocks
 		if ((page == 0x3) && (!write_otp)) {
-			fprintf(stderr,"s");
+			LOG("s");
 			uiSkippedPages++;
 			continue;
 		}
@@ -412,7 +417,7 @@ write_card(bool write_otp, bool write_lock, bool write_dyn_lock, bool write_uid)
 					(iNTAGType == NTAG_213 && page == 0x28) || \
 					(iNTAGType == NTAG_215 && page == 0x82) || \
 					(iNTAGType == NTAG_216 && page == 0xe2)) && (!write_dyn_lock)) {
-			fprintf(stderr,"s");
+			LOG("s");
 			uiSkippedPages++;
 			continue;
 		}
@@ -436,8 +441,8 @@ write_card(bool write_otp, bool write_lock, bool write_dyn_lock, bool write_uid)
 			bFailure = true;
 		print_success_or_failure(bFailure, &uiWrittenPages, &uiFailedPages);
 	}
-	fprintf(stderr,"|\n");
-	fprintf(stderr,"Done, %d of %d pages written (%d pages skipped, %d pages failed).\n", uiWrittenPages, uiBlocks, uiSkippedPages, uiFailedPages);
+	LOG("|\n");
+	LOG("Done, %d of %d pages written (%d pages skipped, %d pages failed).\n", uiWrittenPages, uiBlocks, uiSkippedPages, uiFailedPages);
 
 	return true;
 }
@@ -456,16 +461,16 @@ static int list_passive_targets(nfc_device *_pnd)
 		int i;
 
 		if (res > 0)
-			fprintf(stderr,"%d ISO14443A passive target(s) found:\n", res);
+			LOG("%d ISO14443A passive target(s) found:\n", res);
 
 		for (i = 0; i < res; i++) {
 			size_t  szPos;
 
-			fprintf(stderr,"\t");
+			LOG("\t");
 			for (szPos = 0; szPos < ant[i].nti.nai.szUidLen; szPos++) {
-				fprintf(stderr,"%02x", ant[i].nti.nai.abtUid[szPos]);
+				LOG("%02x", ant[i].nti.nai.abtUid[szPos]);
 			}
-			fprintf(stderr,"\n");
+			LOG("\n");
 		}
 
 	}
@@ -496,11 +501,13 @@ static size_t str_to_uid(const char *str, uint8_t *uid)
 	static void
 print_usage(const char *argv[])
 {
-	printf("no help - get the code\n");	
+	printf("usage:\n");
+	printf("	%s -d    => log some debug information\n", argv[0]);
+	printf("	%s 28 45 => print bytes 28 to 45 from nfc chip\n", argv[0]);
+	printf("	%s 30    => print bytes 30 to 45 from nfc chip\n", argv[0]);
 }
 
-	int
-main(int argc, const char *argv[])
+int main(int argc, const char *argv[])
 {
 	int     iAction = 0;
 	size_t  iDumpSize = sizeof(mifareul_tag);
@@ -515,10 +522,39 @@ main(int argc, const char *argv[])
 	bool    bFilename = false;
 	FILE   *pfDump;
 
-	if (argc == 0) {
-		print_usage(argv);
-		exit(EXIT_FAILURE);
+	int start_byte = -1;
+	int stop_byte = -1;
+
+	for (int i = 0; i < argc; i++){
+		int val = -1;
+		if (argv[i][0] == '-') {
+			if (argv[i][1] == 'd'){
+				logging = 1;
+			} else {
+				print_usage(argv);
+				exit(EXIT_FAILURE);
+			}
+		} else if (0 < (val = atoi(argv[i]))){
+			if (start_byte == -1){
+				start_byte = val;
+			} else if (stop_byte == -1) {
+				stop_byte = val;
+			} else {
+				print_usage(argv);
+				exit(EXIT_FAILURE);
+			}
+		}
 	}
+
+	if (stop_byte <= start_byte) {
+		LOG("start/stop messed up: %d <= %d == bad\n",
+			stop_byte, start_byte);
+	}				
+	if (start_byte < 0) start_byte = 28;
+	if (stop_byte < 0) stop_byte = 45;
+
+
+	
 
 	iAction = 1;
 
@@ -536,7 +572,7 @@ main(int argc, const char *argv[])
 		nfc_exit(context);
 		exit(EXIT_FAILURE);
 	}
-	fprintf(stderr,"NFC device: %s opened\n", nfc_device_get_name(pnd));
+	LOG("NFC device: %s opened\n", nfc_device_get_name(pnd));
 
 	if (list_passive_targets(pnd)) {
 		nfc_perror(pnd, "nfc_device_set_property_bool");
@@ -576,44 +612,44 @@ main(int argc, const char *argv[])
 		exit(EXIT_FAILURE);
 	}
 	// Get the info from the current tag
-	fprintf(stderr,"Using MIFARE Ultralight card with UID: ");
+	LOG("Using MIFARE Ultralight card with UID: ");
 	size_t  szPos;
 	for (szPos = 0; szPos < nt.nti.nai.szUidLen; szPos++) {
-		fprintf(stderr,"%02x", nt.nti.nai.abtUid[szPos]);
+		LOG("%02x", nt.nti.nai.abtUid[szPos]);
 	}
-	fprintf(stderr,"\n");
+	LOG("\n");
 
 	// test if tag is EV1 or NTAG
 	if (get_ev1_version()) {
 		if (!bPWD)
-			fprintf(stderr,"WARNING: Tag is EV1 or NTAG - PASSWORD may be required\n");
+			LOG("WARNING: Tag is EV1 or NTAG - PASSWORD may be required\n");
 		if (abtRx[6] == 0x0b || abtRx[6] == 0x00) {
-			fprintf(stderr,"EV1 type: MF0UL11 (48 bytes)\n");
+			LOG("EV1 type: MF0UL11 (48 bytes)\n");
 			uiBlocks = 20; // total number of 4 byte 'pages'
 			iDumpSize = uiBlocks * 4;
 			iEV1Type = EV1_UL11;
 		} else if (abtRx[6] == 0x0e) {
-			fprintf(stderr,"EV1 type: MF0UL21 (128 user bytes)\n");
+			LOG("EV1 type: MF0UL21 (128 user bytes)\n");
 			uiBlocks = 41; 
 			iDumpSize = uiBlocks * 4;
 			iEV1Type = EV1_UL21;
 		} else if (abtRx[6] == 0x0f) {
-			fprintf(stderr,"NTAG Type: NTAG213 (144 user bytes)\n");
+			LOG("NTAG Type: NTAG213 (144 user bytes)\n");
 			uiBlocks = 45;
 			iDumpSize = uiBlocks * 4;
 			iNTAGType = NTAG_213;
 		} else if (abtRx[6] == 0x11) {
-			fprintf(stderr,"NTAG Type: NTAG215 (504 user bytes)\n");
+			LOG("NTAG Type: NTAG215 (504 user bytes)\n");
 			uiBlocks = 135;
 			iDumpSize = uiBlocks * 4;
 			iNTAGType = NTAG_215;
 		} else if (abtRx[6] == 0x13) {
-			fprintf(stderr,"NTAG Type: NTAG216 (888 user bytes)\n");
+			LOG("NTAG Type: NTAG216 (888 user bytes)\n");
 			uiBlocks = 231;
 			iDumpSize = uiBlocks * 4;
 			iNTAGType = NTAG_216;
 		} else {
-			fprintf(stderr,"unknown! (0x%02x)\n", abtRx[6]);
+			LOG("unknown! (0x%02x)\n", abtRx[6]);
 			exit(EXIT_FAILURE);
 		}
 	} else {
@@ -628,13 +664,13 @@ main(int argc, const char *argv[])
 
 	// EV1 login required
 	if (bPWD) {
-		fprintf(stderr,"Authing with PWD: %02x%02x%02x%02x ", iPWD[0], iPWD[1], iPWD[2], iPWD[3]);
+		LOG("Authing with PWD: %02x%02x%02x%02x ", iPWD[0], iPWD[1], iPWD[2], iPWD[3]);
 		if (!ev1_pwd_auth(iPWD)) {
-			fprintf(stderr,"\n");
+			LOG("\n");
 			ERR("AUTH failed!\n");
 			exit(EXIT_FAILURE);
 		} else {
-			fprintf(stderr,"Success - PACK: %02x%02x\n", abtRx[0], abtRx[1]);
+			LOG("Success - PACK: %02x%02x\n", abtRx[0], abtRx[1]);
 			memcpy(iPACK, abtRx, 2);
 		}
 	}
@@ -643,21 +679,19 @@ main(int argc, const char *argv[])
 
 	if (iAction == 1) {
 		bool bRF = read_card();
-		fprintf(stderr,"Writing data to file: %s ... ", argv[2]);
-		fflush(stdout);
-		pfDump = fopen(argv[2], "wb");
-		if (pfDump == NULL) {
-			fprintf(stderr,"Could not open file: %s\n", argv[2]);
-			nfc_close(pnd);
-			nfc_exit(context);
-			exit(EXIT_FAILURE);
-		}
-		fprintf(stderr,"\n\n");
+		//		pfDump = fopen(argv[2], "wb");
+		//		if (pfDump == NULL) {
+		//			LOG("Could not open file: %s\n", argv[2]);
+		//			nfc_close(pnd);
+		//			nfc_exit(context);
+		//			exit(EXIT_FAILURE);
+		//	}
+		LOG("\n\n");
 		int i = 0;
 		char buffy[1024] = {0};
 
 		for (i = 0; i < sizeof(mtDump); i++){
-			if (i >= 28 && i < 45) 
+			if (i >= start_byte && i < stop_byte) 
 				// printf("[%d]:0x%02X   %c ", i, 
 				//((unsigned char *) &mtDump)[i],
 				//((unsigned char *) &mtDump)[i]);
@@ -665,10 +699,10 @@ main(int argc, const char *argv[])
 		} 
 		printf("\n");
 
-		fclose(pfDump);
-		fprintf(stderr,"Done.\n");
-		if (!bRF)
-			fprintf(stderr,"Warning! Read failed - partial data written to file!\n");
+		//		fclose(pfDump);
+		LOG("Done.\n");
+		//		if (!bRF)
+		//			LOG("Warning! Read failed - partial data written to file!\n");
 	} 
 
 	nfc_close(pnd);

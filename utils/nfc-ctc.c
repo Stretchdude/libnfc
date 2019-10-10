@@ -72,6 +72,7 @@
 #define NTAG_216  3
 
 int logging = 0;
+int wait_for_tag = 0;
 
 #define LOG(...) do {if (logging) fprintf(stderr, __VA_ARGS__); } while(0)
 
@@ -530,6 +531,8 @@ int main(int argc, const char *argv[])
 		if (argv[i][0] == '-') {
 			if (argv[i][1] == 'd'){
 				logging = 1;
+			} else if (argv[i][1] == 'w') {
+				wait_for_tag = 1;
 			} else {
 				print_usage(argv);
 				exit(EXIT_FAILURE);
@@ -596,13 +599,21 @@ int main(int argc, const char *argv[])
 		exit(EXIT_FAILURE);
 	}
 
-	// Try to find a MIFARE Ultralight tag
-	if (nfc_initiator_select_passive_target(pnd, nmMifare, (szUID) ? iUID : NULL, szUID, &nt) <= 0) {
-		ERR("no tag was found\n");
-		nfc_close(pnd);
-		nfc_exit(context);
-		exit(EXIT_FAILURE);
-	}
+	do {
+		// Try to find a MIFARE Ultralight tag
+		if (nfc_initiator_select_passive_target(pnd, nmMifare, (szUID) ? iUID : NULL, szUID, &nt) <= 0) {
+			if (!wait_for_tag) {
+				ERR("no tag was found\n");
+				nfc_close(pnd);
+				nfc_exit(context);
+				exit(EXIT_FAILURE);
+			} else {
+				usleep(200000);
+			}
+		} else {
+			wait_for_tag = 0;
+		}
+	} while (wait_for_tag);
 
 	// Test if we are dealing with a MIFARE compatible tag
 	if (nt.nti.nai.abtAtqa[1] != 0x44) {

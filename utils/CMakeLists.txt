@@ -8,6 +8,7 @@ SET(UTILS-SOURCES
   nfc-read-forum-tag3
   nfc-relay-picc
   nfc-scan-device
+  nfc-ctc
 )
 
 ADD_LIBRARY(nfcutils STATIC 
@@ -35,6 +36,12 @@ FOREACH(source ${UTILS-SOURCES})
   IF((${source} MATCHES "nfc-mfultralight") OR (${source} MATCHES "nfc-mfclassic"))
     LIST(APPEND TARGETS mifare)
   ENDIF((${source} MATCHES "nfc-mfultralight") OR (${source} MATCHES "nfc-mfclassic"))
+
+
+  IF((${source} MATCHES "nfc-ctc"))
+    LIST(APPEND TARGETS mifare)
+  ENDIF((${source} MATCHES "nfc-ctc"))
+
 
   IF(WIN32)
     IF(${source} MATCHES "nfc-scan-device")
